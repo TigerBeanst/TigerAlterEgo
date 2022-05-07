@@ -6,8 +6,9 @@ import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
-import com.alibaba.fastjson.JSON
 import com.jakting.alterego.databinding.ActivityMainBinding
+import com.squareup.moshi.JsonAdapter
+import com.squareup.moshi.Moshi
 import org.java_websocket.client.WebSocketClient
 import org.java_websocket.handshake.ServerHandshake
 import java.net.URI
@@ -15,9 +16,9 @@ import javax.net.ssl.SSLSocketFactory
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
+    private lateinit var clipboardSendAdapter: JsonAdapter<ClipboardSend>
 
-
-    val WEB_SOCKET_URL = "ws://192.168.100.100:8000/ws/"
+    val WEB_SOCKET_URL = "ws://119.91.254.23:8000/ws/"
     val TAG = "Coinbase"
     private lateinit var webSocketClient: WebSocketClient
     private lateinit var clipboardManager: ClipboardManager
@@ -26,6 +27,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
+        clipboardSendAdapter = Moshi.Builder().build().adapter(ClipboardSend::class.java)
 
         clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
@@ -34,12 +36,12 @@ class MainActivity : AppCompatActivity() {
                 "send", 200,
                 ClipboardData(System.currentTimeMillis(), "新内容" + System.currentTimeMillis())
             )
-            webSocketClient.send(JSON.toJSONString(clipboardSend))
+            webSocketClient.send(clipboardSendAdapter.toJson(clipboardSend))
         }
     }
 
     private fun initWebSocket() {
-        val coinbaseUri: URI = URI(WEB_SOCKET_URL + "odin")
+        val coinbaseUri: URI = URI(WEB_SOCKET_URL + android.os.Build.MODEL)
         createWebSocketClient(coinbaseUri)
 
         val socketFactory: SSLSocketFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
@@ -52,13 +54,16 @@ class MainActivity : AppCompatActivity() {
             "subscribe", 200,
             ClipboardData(System.currentTimeMillis(), "心跳维持")
         )
-        webSocketClient.send(JSON.toJSONString(clipboardSend))
+        webSocketClient.send(clipboardSendAdapter.toJson(clipboardSend))
+        runOnUiThread {
+            binding.btcPriceTv.text = clipboardSendAdapter.toJson(clipboardSend)
+        }
     }
 
     private fun setUpBtcPriceText(message: String?) {
         message?.let {
-            val clipboardSend = ClipboardSend::class
-            val clipboard = JSON.parseObject(message, clipboardSend.javaObjectType)
+            val clipboard = clipboardSendAdapter.fromJson(message)
+
 
             runOnUiThread {
 //                Toast.makeText(this@MainActivity,bitcoin.price,Toast.LENGTH_LONG).show()
